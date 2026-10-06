@@ -1,0 +1,1944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Dream Special — Bedtime Stories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://unpkg.com/uuid@9/dist/umd/uuidv4.min.js"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{'dream-violet':'#6246D9','moon-mango':'#FFB84D','twilight-aqua':'#63D5E8','story-berry':'#F56FA1','dream-mint':'#75D6A4','moon-cream':'#FFF8EE','cloud-lavender':'#F0ECFF','midnight-plum':'#211A3D','dream-violet-light':'#8B6FE8','midnight-plum-light':'#3D2E5C'},fontFamily:{'display':['Quicksand','sans-serif'],'body':['Nunito','sans-serif']}}}}
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body,#root{height:100%;width:100%;overflow:hidden}
+body{font-family:'Nunito',sans-serif;background:#FFF8EE;color:#211A3D}
+.font-display{font-family:'Quicksand',sans-serif}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#6246D940;border-radius:4px}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse-soft{0%,100%{opacity:1}50%{opacity:.7}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes spin-slow{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+.animate-fade-in{animation:fadeIn .4s ease-out both}
+.animate-slide-up{animation:slideUp .5s ease-out both}
+.animate-float{animation:float 3s ease-in-out infinite}
+.animate-pulse-soft{animation:pulse-soft 2s ease-in-out infinite}
+.animate-spin-slow{animation:spin-slow 20s linear infinite}
+.delay-100{animation-delay:.1s}
+.delay-200{animation-delay:.2s}
+.delay-300{animation-delay:.3s}
+.delay-400{animation-delay:.4s}
+.delay-500{animation-delay:.5s}
+.shimmer{background:linear-gradient(90deg,#f0ecff 25%,#fff8ee 50%,#f0ecff 75%);background-size:200% 100%;animation:shimmer 1.5s infinite}
+input:focus{outline:none}
+button:focus-visible{outline:2px solid #6246D9;outline-offset:2px}
+.screen-scroll{overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.toast-enter{animation:slideUp .3s ease-out}
+@media(max-width:380px){.mobile-compact{padding:.5rem!important;font-size:.875rem!important}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+
+
+const { useState, useEffect, useContext, createContext, useRef, useCallback, useMemo, Fragment } = React;
+
+// ─── Utility ───────────────────────────────────────────────────
+const uid = () => crypto.randomUUID ? crypto.randomUUID() : 'x'+Math.random().toString(36).slice(2)+Date.now().toString(36);
+const now = () => new Date().toISOString();
+const clamp = (v,min,max) => Math.max(min,Math.min(max,v));
+const fmtTime = (s) => { const m=Math.floor(s/60),sec=Math.floor(s%60); return `${m}:${sec<10?'0':''}${sec}`; };
+const fmtDuration = (mins) => mins < 60 ? `${mins} min` : `${Math.floor(mins/60)}h ${mins%60}m`;
+
+// ─── Local Storage Database Layer (Supabase-compatible) ────────
+const DB = {
+  _get(key) { try { return JSON.parse(localStorage.getItem('ds_'+key)||'[]'); } catch { return []; } },
+  _set(key, data) { localStorage.setItem('ds_'+key, JSON.stringify(data)); },
+  _getObj(key) { try { return JSON.parse(localStorage.getItem('ds_'+key)||'null'); } catch { return null; } },
+  _setObj(key, data) { localStorage.setItem('ds_'+key, JSON.stringify(data)); },
+
+  // Auth
+  getSession() { return this._getObj('session'); },
+  setSession(s) { this._setObj('session', s); },
+  clearSession() { localStorage.removeItem('ds_session'); },
+
+  // Generic CRUD
+  getAll(table) { return this._get(table); },
+  getById(table, id) { return this._get(table).find(r=>r.id===id)||null; },
+  query(table, fn) { return this._get(table).filter(fn); },
+  insert(table, record) { const data=this._get(table); data.push(record); this._set(table,data); return record; },
+  update(table, id, updates) { const data=this._get(table); const idx=data.findIndex(r=>r.id===id); if(idx>=0){data[idx]={...data[idx],...updates,updated_at:now()};this._set(table,data);return data[idx];}return null; },
+  delete_(table, id) { const data=this._get(table).filter(r=>r.id!==id); this._set(table,data); },
+
+  // Specific queries
+  getChildren(parentId) { return this.query('children', c=>c.parent_id===parentId); },
+  getChild(id) { return this.getById('children', id); },
+  getFamilyMembers(parentId) { return this.query('family_members', f=>f.parent_id===parentId); },
+  getFamilyVoices(memberId) { return this.query('family_voices', v=>v.family_member_id===memberId); },
+  getAllVoicesForParent(parentId) {
+    const members = this.getFamilyMembers(parentId);
+    return members.flatMap(m => this.getFamilyVoices(m.id).map(v=>({...v,member_name:m.name,relationship:m.relationship,member_avatar:m.avatar})));
+  },
+  getStories(lang, category) {
+    let stories = this.getAll('stories');
+    if(lang) stories = stories.filter(s=>s.languages.includes(lang));
+    if(category) stories = stories.filter(s=>s.category===category);
+    return stories;
+  },
+  getStoryAudio(storyId, voiceId) { return this.query('story_voice_audio', a=>a.story_id===storyId&&a.family_voice_id===voiceId); },
+  getListeningHistory(childId) { return this.query('listening_history', h=>h.child_id===childId).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)); },
+  getDownloads(childId) { return this.query('downloads', d=>d.child_id===childId); },
+  getParentSettings(parentId) { return this.query('parent_settings', s=>s.parent_id===parentId)[0]||null; },
+  getSleepSettings(childId) { return this.query('sleep_settings', s=>s.child_id===childId)[0]||null; },
+
+  // Initialize seed data
+  seed() {
+    if(this._getObj('seeded')) return;
+    this._set('stories', SEED_STORIES);
+    this._set('languages', LANGUAGES);
+    this._set('categories', CATEGORIES);
+    this._setObj('seeded', true);
+  }
+};
+
+// ─── Languages ─────────────────────────────────────────────────
+const LANGUAGES = [
+  {id:'en',name:'English',native:'English',flag:'🇬🇧'},
+  {id:'ta',name:'Tamil',native:'தமிழ்',flag:'🇮🇳'},
+  {id:'te',name:'Telugu',native:'తెలుగు',flag:'🇮🇳'},
+  {id:'ml',name:'Malayalam',native:'മലയാളം',flag:'🇮🇳'},
+  {id:'kn',name:'Kannada',native:'ಕನ್ನಡ',flag:'🇮🇳'},
+  {id:'hi',name:'Hindi',native:'हिन्दी',flag:'🇮🇳'}
+];
+
+const CATEGORIES = [
+  {id:'animals',name:'Animals',icon:'🦁',color:'#75D6A4'},
+  {id:'adventure',name:'Adventure',icon:'⚔️',color:'#63D5E8'},
+  {id:'magic',name:'Magic',icon:'✨',color:'#6246D9'},
+  {id:'calming',name:'Calming',icon:'🌙',color:'#FFB84D'},
+  {id:'traditional',name:'Traditional',icon:'📖',color:'#F56FA1'},
+  {id:'moral',name:'Moral Stories',icon:'💡',color:'#8B6FE8'}
+];
+
+const RELATIONSHIPS = [
+  {id:'amma',name:'Amma',label:'Mother',avatar:'👩'},
+  {id:'appa',name:'Appa',label:'Father',avatar:'👨'},
+  {id:'patti',name:'Patti',label:'Grandmother',avatar:'👵'},
+  {id:'thatha',name:'Thatha',label:'Grandfather',avatar:'👴'},
+  {id:'other',name:'Other',label:'Family Member',avatar:'🧑'}
+];
+
+// ─── Seed Stories ──────────────────────────────────────────────
+const SEED_STORIES = [
+  {id:'s1',title:'The Moon and the Little Rabbit',description:'A gentle story about a little rabbit who asks the moon to watch over her as she falls asleep. The moon agrees and sings a soft lullaby.',cover:`https://picsum.photos/seed/moonrabbit/400/300`,category:'calming',languages:['en','ta','hi'],duration:8,age_min:3,age_max:7,created_at:now(),updated_at:now()},
+  {id:'s2',title:'Panchatantra — The Clever Rabbit',description:'The classic tale of a clever rabbit who outsmarts a mighty lion using wit and wisdom. A timeless moral story.',cover:`https://picsum.photos/seed/cleverbunny/400/300`,category:'moral',languages:['en','ta','te','kn','hi'],duration:12,age_min:4,age_max:10,created_at:now(),updated_at:now()},
+  {id:'s3',title:'Chandamama\'s Night',description:'Chandamama (the Moon Uncle) comes down from the sky to tell children a bedtime story about the stars.',cover:`https://picsum.photos/seed/chandamama/400/300`,category:'traditional',languages:['en','ta','te','ml'],duration:10,age_min:3,age_max:8,created_at:now(),updated_at:now()},
+  {id:'s4',title:'The Magic Forest',description:'Deep in the Magic Forest, trees whisper secrets and fireflies guide lost animals home. A calming bedtime adventure.',cover:`https://picsum.photos/seed/magicforest/400/300`,category:'magic',languages:['en','hi','ml'],duration:7,age_min:3,age_max:6,created_at:now(),updated_at:now()},
+  {id:'s5',title:'Little Star\'s Dream',description:'A tiny star dreams of becoming the brightest in the sky. With help from friendly clouds, she learns to shine.',cover:`https://picsum.photos/seed/littlestar/400/300`,category:'calming',languages:['en','ta','kn','hi'],duration:6,age_min:3,age_max:7,created_at:now(),updated_at:now()},
+  {id:'s6',title:'The Kind Elephant',description:'A big-hearted elephant helps smaller animals cross a flooded river. A story about kindness and helping others.',cover:`https://picsum.photos/seed/k indelelephant/400/300`,category:'moral',languages:['en','ta','te','ml','kn','hi'],duration:9,age_min:4,age_max:9,created_at:now(),updated_at:now()},
+  {id:'s7',title:'The Sleepy Owl',description:'Owl stays awake all night watching over the forest. When morning comes, all the animals thank Owl with a cozy nest.',cover:`https://picsum.photos/seed/sleepyowl/400/300`,category:'animals',languages:['en','hi'],duration:5,age_min:3,age_max:6,created_at:now(),updated_at:now()},
+  {id:'s8',title:'Adventure under the Banyan Tree',description:'Under the great banyan tree, children from the village gather as grandmother tells tales of brave kings and magical creatures.',cover:`https://picsum.photos/seed/banyantree/400/300`,category:'adventure',languages:['en','ta','te','kn'],duration:11,age_min:5,age_max:10,created_at:now(),updated_at:now()},
+  {id:'s9',title:'The Cloud Kingdom',description:'High above, clouds have a kingdom where they make rainbows and soft rain. Little Cloud wants to make the most beautiful rainbow.',cover:`https://picsum.photos/seed/cloudkingdom/400/300`,category:'magic',languages:['en','ml','hi'],duration:8,age_min:3,age_max:8,created_at:now(),updated_at:now()},
+  {id:'s10',title:'Grandmother\'s Lullaby',description:'Patti sings a gentle lullaby passed down through generations. The song carries the warmth of family and the comfort of home.',cover:`https://picsum.photos/seed/pattilullaby/400/300`,category:'traditional',languages:['en','ta','ml','kn'],duration:6,age_min:3,age_max:7,created_at:now(),updated_at:now()},
+  {id:'s11',title:'The Brave Little Fish',description:'A tiny fish swims upstream to find the source of the river. Along the way, she meets friends who help her on her journey.',cover:`https://picsum.photos/seed/bravefish/400/300`,category:'adventure',languages:['en','te','hi'],duration:10,age_min:4,age_max:9,created_at:now(),updated_at:now()},
+  {id:'s12',title:'Stars over the Village',description:'As night falls on a quiet village, a child looks up at the stars and hears stories about each constellation from her thatha.',cover:`https://picsum.photos/seed/starsvillage/400/300`,category:'calming',languages:['en','ta','te','ml','kn','hi'],duration:7,age_min:3,age_max:8,created_at:now(),updated_at:now()}
+];
+
+// Fix seed story s6 cover URL
+SEED_STORIES[5].cover = `https://picsum.photos/seed/kindlelephant/400/300`;
+
+// ─── Initialize DB ─────────────────────────────────────────────
+DB.seed();
+
+// ─── Audio Engine (real Web Audio API) ─────────────────────────
+const AudioEngine = {
+  ctx: null,
+  audio: null,
+  _listeners: {},
+  init() {
+    if(!this.audio) {
+      this.audio = new Audio();
+      this.audio.crossOrigin = 'anonymous';
+    }
+    return this.audio;
+  },
+  async play(src) {
+    const a = this.init();
+    if(src) a.src = src;
+    try { await a.play(); return true; } catch(e) { console.warn('Audio play failed:', e); return false; }
+  },
+  pause() { const a=this.init(); a.pause(); },
+  resume() { const a=this.init(); if(a.src) a.play().catch(()=>{}); },
+  stop() { const a=this.init(); a.pause(); a.currentTime=0; },
+  seek(time) { const a=this.init(); a.currentTime=time; },
+  setVolume(v) { const a=this.init(); a.volume=clamp(v,0,1); },
+  setSpeed(s) { const a=this.init(); a.playbackRate=clamp(s,0.5,2); },
+  getProgress() { const a=this.init(); return a.duration?{current:a.currentTime,total:a.duration,percent:(a.currentTime/a.duration)*100}:{current:0,total:0,percent:0}; },
+  isPlaying() { const a=this.init(); return !a.paused; },
+  getAudio() { return this.init(); },
+  // Generate a calming demo tone
+  generateDemoAudio(durationSec=30) {
+    const sampleRate = 22050;
+    const numSamples = sampleRate * durationSec;
+    const ctx = new (window.AudioContext||window.webkitAudioContext)({sampleRate});
+    const buffer = ctx.createBuffer(1, numSamples, sampleRate);
+    const data = buffer.getChannelData(0);
+    // Gentle harmonic lullaby pattern
+    const notes = [261.63,293.66,329.63,349.23,392.00,349.23,329.63,293.66]; // C D E F G F E D
+    const noteLen = sampleRate * 2;
+    for(let i=0;i<numSamples;i++){
+      const noteIdx = Math.floor(i/noteLen) % notes.length;
+      const freq = notes[noteIdx];
+      const t = i/sampleRate;
+      const env = Math.sin(Math.PI*(i%noteLen)/noteLen);
+      data[i] = 0.3 * env * Math.sin(2*Math.PI*freq*t) + 0.1 * env * Math.sin(2*Math.PI*freq*2*t);
+    }
+    const blob = new Promise(resolve => {
+      const offCtx = new OfflineAudioContext(1, numSamples, sampleRate);
+      const src = offCtx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(offCtx.destination);
+      src.start();
+      offCtx.startRendering().then(rendered => {
+        const wav = audioBufferToWav(rendered);
+        resolve(new Blob([wav],{type:'audio/wav'}));
+      });
+    });
+    return blob;
+  }
+};
+
+// Convert AudioBuffer to WAV
+function audioBufferToWav(buffer) {
+  const numCh=buffer.numberOfChannels, sr=buffer.sampleRate, bps=16;
+  const bytesPerSample=bps/8, blockAlign=numCh*bytesPerSample;
+  const data=[];
+  for(let ch=0;ch<numCh;ch++) data.push(buffer.getChannelData(ch));
+  const length=data[0].length;
+  const dataSize=length*blockAlign;
+  const header=new ArrayBuffer(44+dataSize);
+  const view=new DataView(header);
+  function writeString(offset,str){for(let i=0;i<str.length;i++)view.setUint8(offset+i,str.charCodeAt(i));}
+  writeString(0,'RIFF');view.setUint32(4,36+dataSize,true);writeString(8,'WAVE');
+  writeString(12,'fmt ');view.setUint32(16,16,true);view.setUint16(20,1,true);view.setUint16(22,numCh,true);
+  view.setUint32(24,sr,true);view.setUint32(28,sr*blockAlign,true);view.setUint16(32,blockAlign,true);view.setUint16(34,bps,true);
+  writeString(36,'data');view.setUint32(40,dataSize,true);
+  let offset=44;
+  for(let i=0;i<length;i++){
+    for(let ch=0;ch<numCh;ch++){
+      const sample=Math.max(-1,Math.min(1,data[ch][i]));
+      view.setInt16(offset,sample<0?sample*0x8000:sample*0x7FFF,true);
+      offset+=2;
+    }
+  }
+  return header;
+}
+
+// ─── Download Manager (IndexedDB) ──────────────────────────────
+const DownloadManager = {
+  db: null,
+  async init() {
+    return new Promise((resolve) => {
+      const req = indexedDB.open('dreamspecial_downloads', 1);
+      req.onupgradeneeded = (e) => { e.target.result.createObjectStore('files',{keyPath:'id'}); };
+      req.onsuccess = (e) => { this.db=e.target.result; resolve(); };
+      req.onerror = () => { this.db=null; resolve(); };
+    });
+  },
+  async save(id, blob, meta) {
+    if(!this.db) return false;
+    return new Promise((resolve) => {
+      const tx=this.db.transaction('files','readwrite');
+      tx.objectStore('files').put({id,blob,meta,savedAt:now()});
+      tx.oncomplete=()=>resolve(true);
+      tx.onerror=()=>resolve(false);
+    });
+  },
+  async get(id) {
+    if(!this.db) return null;
+    return new Promise((resolve) => {
+      const tx=this.db.transaction('files','readonly');
+      const req=tx.objectStore('files').get(id);
+      req.onsuccess=()=>resolve(req.result||null);
+      req.onerror=()=>resolve(null);
+    });
+  },
+  async remove(id) {
+    if(!this.db) return;
+    return new Promise((resolve) => {
+      const tx=this.db.transaction('files','readwrite');
+      tx.objectStore('files').delete(id);
+      tx.oncomplete=()=>resolve();
+      tx.onerror=()=>resolve();
+    });
+  },
+  async getAll() {
+    if(!this.db) return [];
+    return new Promise((resolve) => {
+      const tx=this.db.transaction('files','readonly');
+      const req=tx.objectStore('files').getAll();
+      req.onsuccess=()=>resolve(req.result||[]);
+      req.onerror=()=>resolve([]);
+    });
+  }
+};
+DownloadManager.init();
+
+// ─── Voice Recorder (real MediaRecorder) ───────────────────────
+const VoiceRecorder = {
+  mediaRec: null,
+  chunks: [],
+  stream: null,
+  async start() {
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({audio:true});
+      this.chunks = [];
+      this.mediaRec = new MediaRecorder(this.stream);
+      this.mediaRec.ondataavailable = (e) => { if(e.data.size>0) this.chunks.push(e.data); };
+      this.mediaRec.start();
+      return true;
+    } catch(e) { console.warn('Mic access denied:', e); return false; }
+  },
+  stop() {
+    return new Promise((resolve) => {
+      if(!this.mediaRec) return resolve(null);
+      this.mediaRec.onstop = () => {
+        const blob = new Blob(this.chunks, {type:'audio/webm'});
+        if(this.stream) this.stream.getTracks().forEach(t=>t.stop());
+        this.mediaRec=null; this.stream=null;
+        resolve(blob);
+      };
+      this.mediaRec.stop();
+    });
+  },
+  isRecording() { return this.mediaRec && this.mediaRec.state==='recording'; }
+};
+
+// ═══════════════════════════════════════════════════════════════
+//  REACT CONTEXTS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Auth Context ──────────────────────────────────────────────
+const AuthContext = createContext(null);
+function AuthProvider({children}) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const session = DB.getSession();
+    if(session && session.user) {
+      setUser(session.user);
+    }
+    setLoading(false);
+  }, []);
+
+  const signUp = useCallback(async (email, password, name) => {
+    const users = DB.getAll('users');
+    if(users.find(u=>u.email===email)) return {error:'An account with this email already exists'};
+    const user = {id:uid(), email, name, created_at:now()};
+    const profile = {id:user.id, email, name, pin:'1234', created_at:now(), updated_at:now()};
+    DB.insert('users', {...user, password});
+    DB.insert('profiles', profile);
+    DB.insert('parent_settings', {id:uid(), parent_id:user.id, default_sleep_timer:15, allow_downloads:true, created_at:now()});
+    DB.setSession({user, access_token:uid()});
+    setUser(user);
+    return {user};
+  }, []);
+
+  const signIn = useCallback(async (email, password) => {
+    const users = DB.getAll('users');
+    const found = users.find(u=>u.email===email && u.password===password);
+    if(!found) return {error:'Invalid email or password'};
+    const user = {id:found.id, email:found.email, name:found.name};
+    DB.setSession({user, access_token:uid()});
+    setUser(user);
+    return {user};
+  }, []);
+
+  const signOut = useCallback(() => {
+    DB.clearSession();
+    setUser(null);
+  }, []);
+
+  const updateProfile = useCallback((updates) => {
+    if(!user) return;
+    DB.update('profiles', user.id, updates);
+  }, [user]);
+
+  const getProfile = useCallback(() => {
+    if(!user) return null;
+    return DB.getById('profiles', user.id);
+  }, [user]);
+
+  return <AuthContext.Provider value={{user,loading,signUp,signIn,signOut,updateProfile,getProfile}}>{children}</AuthContext.Provider>;
+}
+function useAuth() { return useContext(AuthContext); }
+
+// ─── App Context ───────────────────────────────────────────────
+const AppContext = createContext(null);
+function AppProvider({children}) {
+  const [screen, setScreen] = useState('splash');
+  const [params, setParams] = useState({});
+  const [activeChild, setActiveChild] = useState(null);
+  const [activeLang, setActiveLang] = useState('en');
+  const [toast, setToast] = useState(null);
+  const [parentUnlocked, setParentUnlocked] = useState(false);
+
+  const navigate = useCallback((screen, p={}) => {
+    setScreen(screen);
+    setParams(p);
+  }, []);
+
+  const showToast = useCallback((message, type='info') => {
+    setToast({message, type, id:uid()});
+    setTimeout(()=>setToast(null), 3000);
+  }, []);
+
+  return <AppContext.Provider value={{screen,params,navigate,activeChild,setActiveChild,activeLang,setActiveLang,toast,showToast,parentUnlocked,setParentUnlocked}}>{children}</AppContext.Provider>;
+}
+function useApp() { return useContext(AppContext); }
+
+// ─── Player Context ────────────────────────────────────────────
+const PlayerContext = createContext(null);
+function PlayerProvider({children}) {
+  const [playing, setPlaying] = useState(false);
+  const [story, setStory] = useState(null);
+  const [voice, setVoice] = useState(null);
+  const [progress, setProgress] = useState({current:0,total:0,percent:0});
+  const [volume, setVolumeState] = useState(0.8);
+  const [speed, setSpeedState] = useState(1);
+  const [sleepTimer, setSleepTimer] = useState(null);
+  const [timerRemaining, setTimerRemaining] = useState(null);
+  const timerRef = useRef(null);
+  const progressRef = useRef(null);
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    audioRef.current = AudioEngine.init();
+    audioRef.current.volume = volume;
+  }, []);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if(!audio) return;
+    const update = () => {
+      const p = AudioEngine.getProgress();
+      setProgress(p);
+    };
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onEnded = () => { setPlaying(false); if(sleepTimer) clearSleepTimer(); };
+    audio.addEventListener('timeupdate', update);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('ended', onEnded);
+    return () => {
+      audio.removeEventListener('timeupdate', update);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [sleepTimer]);
+
+  const playStory = useCallback(async (storyObj, voiceObj, audioSrc) => {
+    setStory(storyObj);
+    setVoice(voiceObj);
+    if(audioSrc) {
+      const ok = await AudioEngine.play(audioSrc);
+      setPlaying(ok);
+    }
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if(playing) { AudioEngine.pause(); setPlaying(false); }
+    else { AudioEngine.resume(); setPlaying(true); }
+  }, [playing]);
+
+  const stop = useCallback(() => {
+    AudioEngine.stop();
+    setPlaying(false);
+    setStory(null);
+    setVoice(null);
+    setProgress({current:0,total:0,percent:0});
+  }, []);
+
+  const seek = useCallback((time) => { AudioEngine.seek(time); }, []);
+  const setVolume = useCallback((v) => { setVolumeState(v); AudioEngine.setVolume(v); }, []);
+  const setSpeed = useCallback((s) => { setSpeedState(s); AudioEngine.setSpeed(s); }, []);
+
+  const startSleepTimer = useCallback((minutes) => {
+    if(timerRef.current) clearInterval(timerRef.current);
+    const endTime = Date.now() + minutes * 60 * 1000;
+    setSleepTimer(minutes);
+    setTimerRemaining(minutes * 60);
+    timerRef.current = setInterval(() => {
+      const rem = Math.round((endTime - Date.now()) / 1000);
+      if(rem <= 0) {
+        AudioEngine.pause();
+        setPlaying(false);
+        setSleepTimer(null);
+        setTimerRemaining(null);
+        clearInterval(timerRef.current);
+      } else {
+        setTimerRemaining(rem);
+      }
+    }, 1000);
+  }, []);
+
+  const clearSleepTimer = useCallback(() => {
+    if(timerRef.current) clearInterval(timerRef.current);
+    setSleepTimer(null);
+    setTimerRemaining(null);
+  }, []);
+
+  return <PlayerContext.Provider value={{playing,story,voice,progress,volume,speed,sleepTimer,timerRemaining,playStory,togglePlay,stop,seek,setVolume,setSpeed,startSleepTimer,clearSleepTimer}}>{children}</PlayerContext.Provider>;
+}
+function usePlayer() { return useContext(PlayerContext); }
+
+
+// ═══════════════════════════════════════════════════════════════
+//  REUSABLE COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Button ────────────────────────────────────────────────────
+function Button({children, onClick, variant='primary', size='md', disabled, className='', full}) {
+  const base = 'rounded-2xl font-bold transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:active:scale-100 ' + (full?'w-full ':'');
+  const sizes = {sm:'px-4 py-2 text-sm',md:'px-6 py-3 text-base',lg:'px-8 py-4 text-lg'};
+  const variants = {
+    primary:'bg-dream-violet text-white shadow-lg shadow-dream-violet/30 hover:bg-dream-violet-light',
+    secondary:'bg-cloud-lavender text-dream-violet hover:bg-dream-violet hover:text-white',
+    mango:'bg-moon-mango text-midnight-plum shadow-lg shadow-moon-mango/30 hover:brightness-110',
+    mint:'bg-dream-mint text-midnight-plum shadow-lg shadow-dream-mint/30 hover:brightness-110',
+    berry:'bg-story-berry text-white shadow-lg shadow-story-berry/30 hover:brightness-110',
+    ghost:'bg-transparent text-dream-violet hover:bg-cloud-lavender',
+    outline:'border-2 border-dream-violet text-dream-violet hover:bg-dream-violet hover:text-white',
+    danger:'bg-red-500 text-white hover:bg-red-600'
+  };
+  return <button onClick={onClick} disabled={disabled} className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}>{children}</button>;
+}
+
+// ─── Card ──────────────────────────────────────────────────────
+function Card({children, className='', onClick}) {
+  return <div onClick={onClick} className={`bg-white rounded-3xl shadow-sm border border-cloud-lavender/50 p-4 ${onClick?'cursor-pointer active:scale-[0.98] transition-transform':''} ${className}`}>{children}</div>;
+}
+
+// ─── StoryCard ─────────────────────────────────────────────────
+function StoryCard({story, onClick}) {
+  const cat = CATEGORIES.find(c=>c.id===story.category);
+  return (
+    <Card onClick={()=>onClick&&onClick(story)} className="overflow-hidden !p-0 animate-fade-in">
+      <div className="relative">
+        <img src={story.cover} alt={story.title} className="w-full h-36 object-cover" loading="lazy"/>
+        <div className="absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold text-white" style={{background:cat?.color||'#6246D9'}}>{cat?.name}</div>
+      </div>
+      <div className="p-3">
+        <h3 className="font-display font-bold text-midnight-plum text-sm leading-tight line-clamp-2">{story.title}</h3>
+        <div className="flex items-center gap-2 mt-2 text-xs text-midnight-plum/60">
+          <span>⏱ {story.duration} min</span>
+          <span>•</span>
+          <span>Ages {story.age_min}-{story.age_max}</span>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ─── CategoryCard ──────────────────────────────────────────────
+function CategoryCard({category, onClick}) {
+  return (
+    <div onClick={()=>onClick&&onClick(category)} className="flex flex-col items-center gap-2 cursor-pointer group animate-fade-in">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl transition-transform group-active:scale-90" style={{background:category.color+'20'}}>
+        {category.icon}
+      </div>
+      <span className="text-xs font-semibold text-midnight-plum/80 text-center leading-tight">{category.name}</span>
+    </div>
+  );
+}
+
+// ─── VoiceCard ─────────────────────────────────────────────────
+function VoiceCard({voice, selected, onClick}) {
+  return (
+    <div onClick={()=>onClick&&onClick(voice)} className={`p-4 rounded-2xl border-2 cursor-pointer transition-all active:scale-95 ${selected?'border-dream-violet bg-cloud-lavender':'border-cloud-lavender/50 bg-white hover:border-dream-violet/30'}`}>
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-cloud-lavender flex items-center justify-center text-2xl">{voice.member_avatar||voice.avatar||'🎤'}</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold text-midnight-plum text-sm">{voice.voice_name||voice.name}</div>
+          <div className="text-xs text-midnight-plum/60">{voice.relationship||voice.label||''}</div>
+        </div>
+        {selected && <div className="w-6 h-6 rounded-full bg-dream-violet flex items-center justify-center"><span className="text-white text-xs">✓</span></div>}
+      </div>
+    </div>
+  );
+}
+
+// ─── Header ────────────────────────────────────────────────────
+function Header({title, onBack, right}) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 sticky top-0 z-20 bg-moon-cream/90 backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        {onBack && <button onClick={onBack} className="w-9 h-9 rounded-full bg-cloud-lavender flex items-center justify-center text-dream-violet active:scale-90 transition-transform">←</button>}
+        <h1 className="font-display font-bold text-lg text-midnight-plum">{title}</h1>
+      </div>
+      {right && <div>{right}</div>}
+    </div>
+  );
+}
+
+// ─── Bottom Nav ────────────────────────────────────────────────
+function BottomNav() {
+  const {screen, navigate} = useApp();
+  const {story} = usePlayer();
+  const tabs = [
+    {id:'home',icon:'🏠',label:'Home',screen:'home'},
+    {id:'stories',icon:'📚',label:'Stories',screen:'stories'},
+    {id:'downloads',icon:'⬇️',label:'Downloads',screen:'downloads'},
+    {id:'parent',icon:'⚙️',label:'Parent',screen:'parent-gate'}
+  ];
+  return (
+    <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-cloud-lavender/30 z-30 safe-area-bottom">
+      <div className="flex items-center justify-around py-2 max-w-lg mx-auto">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>navigate(t.screen)} className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-xl transition-all ${screen===t.screen?'text-dream-violet':'text-midnight-plum/40'}`}>
+            <span className="text-xl">{t.icon}</span>
+            <span className="text-[10px] font-semibold">{t.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Modal ─────────────────────────────────────────────────────
+function Modal({open, onClose, title, children}) {
+  if(!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-midnight-plum/40 backdrop-blur-sm"/>
+      <div className="relative bg-moon-cream rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[85vh] overflow-y-auto animate-slide-up" onClick={e=>e.stopPropagation()}>
+        {title && <div className="p-5 border-b border-cloud-lavender/30"><h2 className="font-display font-bold text-xl text-midnight-plum">{title}</h2></div>}
+        <div className="p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Toast ─────────────────────────────────────────────────────
+function Toast() {
+  const {toast} = useApp();
+  if(!toast) return null;
+  const colors = {info:'bg-dream-violet text-white',success:'bg-dream-mint text-midnight-plum',error:'bg-red-500 text-white',warning:'bg-moon-mango text-midnight-plum'};
+  return (
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl font-semibold text-sm shadow-lg toast-enter ${colors[toast.type]||colors.info}`}>
+      {toast.message}
+    </div>
+  );
+}
+
+// ─── Loading ───────────────────────────────────────────────────
+function Loading() {
+  return <div className="flex items-center justify-center p-8"><div className="w-8 h-8 border-3 border-dream-violet border-t-transparent rounded-full animate-spin"/></div>;
+}
+
+function EmptyState({icon='📭',title='Nothing here',description=''}) {
+  return <div className="flex flex-col items-center justify-center py-12 text-center"><div className="text-5xl mb-3">{icon}</div><h3 className="font-display font-bold text-midnight-plum">{title}</h3><p className="text-sm text-midnight-plum/60 mt-1">{description}</p></div>;
+}
+
+// ─── Sleep Timer Component ─────────────────────────────────────
+function SleepTimerComponent({onSelect, active, remaining}) {
+  const options = [{label:'5 min',value:5},{label:'10 min',value:10},{label:'15 min',value:15},{label:'20 min',value:20},{label:'30 min',value:30},{label:'End of story',value:0}];
+  return (
+    <div className="space-y-3">
+      <h3 className="font-display font-bold text-midnight-plum flex items-center gap-2">🌙 Sleep Timer</h3>
+      {active ? (
+        <div className="bg-cloud-lavender rounded-2xl p-4 text-center">
+          <div className="text-3xl font-bold text-dream-violet">{remaining ? `${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}` : 'Active'}</div>
+          <div className="text-sm text-midnight-plum/60 mt-1">Until sleep mode</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2">
+          {options.map(o=>(
+            <button key={o.value} onClick={()=>onSelect(o.value)} className="py-3 px-2 rounded-xl bg-cloud-lavender text-sm font-semibold text-midnight-plum hover:bg-dream-violet hover:text-white transition-all active:scale-95">{o.label}</button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Language Selector ─────────────────────────────────────────
+function LanguageSelector({value, onChange, compact}) {
+  return (
+    <div className={compact?'flex gap-2 overflow-x-auto pb-2':'grid grid-cols-2 gap-3'}>
+      {LANGUAGES.map(l=>(
+        <button key={l.id} onClick={()=>onChange(l.id)} className={`flex items-center gap-2 rounded-xl transition-all active:scale-95 ${compact?'px-3 py-2 text-sm':'px-4 py-3'} ${value===l.id?'bg-dream-violet text-white shadow-md':'bg-white text-midnight-plum border border-cloud-lavender/50'}`}>
+          <span>{l.flag}</span>
+          <span className="font-semibold">{compact?l.native:l.name}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Mini Player ───────────────────────────────────────────────
+function MiniPlayer() {
+  const {playing, story, voice, progress, togglePlay, stop} = usePlayer();
+  const {navigate} = useApp();
+  if(!story) return null;
+  return (
+    <div className="fixed bottom-16 left-0 right-0 z-20 px-3">
+      <div className="bg-midnight-plum rounded-2xl p-3 flex items-center gap-3 shadow-xl shadow-midnight-plum/30 cursor-pointer" onClick={()=>navigate('player')}>
+        <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0">
+          <img src={story.cover} className="w-full h-full object-cover"/>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-white text-xs font-bold truncate">{story.title}</div>
+          <div className="text-white/50 text-[10px]">{voice?.voice_name||voice?.name||'Default Voice'}</div>
+          <div className="w-full h-1 bg-white/20 rounded-full mt-1"><div className="h-full bg-moon-mango rounded-full" style={{width:`${progress.percent}%`}}/></div>
+        </div>
+        <button onClick={e=>{e.stopPropagation();togglePlay()}} className="w-9 h-9 rounded-full bg-dream-violet flex items-center justify-center text-white text-sm flex-shrink-0 active:scale-90">{playing?'⏸':'▶'}</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  SCREEN COMPONENTS
+// ═══════════════════════════════════════════════════════════════
+
+// ─── Splash ────────────────────────────────────────────────────
+function SplashScreen() {
+  const {navigate} = useApp();
+  const {user} = useAuth();
+  useEffect(()=>{
+    const t = setTimeout(()=>{
+      if(user) {
+        const children = DB.getChildren(user.id);
+        if(children.length>0) navigate('home');
+        else navigate('parent-setup');
+      } else {
+        navigate('welcome');
+      }
+    }, 2000);
+    return ()=>clearTimeout(t);
+  },[]);
+  return (
+    <div className="h-full flex flex-col items-center justify-center bg-gradient-to-b from-cloud-lavender to-moon-cream">
+      <div className="animate-float">
+        <div className="text-7xl mb-4">🌙</div>
+      </div>
+      <h1 className="font-display font-bold text-4xl text-dream-violet animate-fade-in">Dream Special</h1>
+      <p className="text-midnight-plum/60 mt-2 animate-fade-in delay-200">Bedtime stories, family voices</p>
+      <div className="mt-8 animate-pulse-soft"><div className="w-6 h-6 border-2 border-dream-violet border-t-transparent rounded-full animate-spin"/></div>
+    </div>
+  );
+}
+
+// ─── Welcome ───────────────────────────────────────────────────
+function WelcomeScreen() {
+  const {navigate} = useApp();
+  return (
+    <div className="h-full screen-scroll bg-gradient-to-b from-cloud-lavender via-moon-cream to-moon-cream">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] px-6 pt-12">
+        <div className="text-6xl mb-6 animate-float">🌙</div>
+        <h1 className="font-display font-bold text-4xl text-midnight-plum text-center animate-fade-in">Welcome to<br/><span className="text-dream-violet">Dream Special</span></h1>
+        <p className="text-midnight-plum/60 text-center mt-4 max-w-xs animate-fade-in delay-200">Bedtime stories told in the voices your child loves — Amma, Appa, Patti, Thatha</p>
+        <div className="flex gap-4 mt-4 animate-fade-in delay-300">
+          <span className="text-3xl">👩</span><span className="text-3xl">👨</span><span className="text-3xl">👵</span><span className="text-3xl">👴</span>
+        </div>
+      </div>
+      <div className="px-6 pb-8 space-y-3 animate-slide-up delay-400">
+        <Button onClick={()=>navigate('signup')} full size="lg">Create Account</Button>
+        <Button onClick={()=>navigate('login')} full variant="outline" size="lg">Sign In</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Login ─────────────────────────────────────────────────────
+function LoginScreen() {
+  const {signIn} = useAuth();
+  const {navigate, showToast} = useApp();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async () => {
+    if(!email||!password) { setError('Please enter email and password'); return; }
+    setLoading(true); setError('');
+    const result = await signIn(email, password);
+    setLoading(false);
+    if(result.error) { setError(result.error); showToast(result.error,'error'); }
+    else {
+      showToast('Welcome back!','success');
+      const children = DB.getChildren(result.user.id);
+      navigate(children.length>0?'home':'parent-setup');
+    }
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream px-6 py-6">
+      <Header title="Sign In" onBack={()=>navigate('welcome')}/>
+      <div className="mt-6 space-y-4">
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Email</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Password</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Your password" onKeyDown={e=>e.key==='Enter'&&handleLogin()} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        {error && <p className="text-red-500 text-sm font-semibold">{error}</p>}
+        <Button onClick={handleLogin} full size="lg" disabled={loading}>{loading?'Signing in...':'Sign In'}</Button>
+        <button onClick={()=>navigate('forgot-password')} className="text-dream-violet text-sm font-semibold w-full text-center">Forgot password?</button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Signup ────────────────────────────────────────────────────
+function SignupScreen() {
+  const {signUp} = useAuth();
+  const {navigate, showToast} = useApp();
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSignup = async () => {
+    if(!name||!email||!password) { setError('All fields are required'); return; }
+    if(password.length<6) { setError('Password must be at least 6 characters'); return; }
+    setLoading(true); setError('');
+    const result = await signUp(email, password, name);
+    setLoading(false);
+    if(result.error) { setError(result.error); showToast(result.error,'error'); }
+    else { showToast('Account created!','success'); navigate('parent-setup'); }
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream px-6 py-6">
+      <Header title="Create Account" onBack={()=>navigate('welcome')}/>
+      <div className="mt-6 space-y-4">
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Your Name</label>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="Parent's name" className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Email</label>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Password</label>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Min. 6 characters" onKeyDown={e=>e.key==='Enter'&&handleSignup()} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        {error && <p className="text-red-500 text-sm font-semibold">{error}</p>}
+        <Button onClick={handleSignup} full size="lg" disabled={loading}>{loading?'Creating account...':'Create Account'}</Button>
+        <p className="text-center text-sm text-midnight-plum/60">Already have an account? <button onClick={()=>navigate('login')} className="text-dream-violet font-semibold">Sign In</button></p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Forgot Password ───────────────────────────────────────────
+function ForgotPasswordScreen() {
+  const {navigate, showToast} = useApp();
+  const [email, setEmail] = useState('');
+  const [sent, setSent] = useState(false);
+  const handleReset = () => {
+    if(!email) return;
+    setSent(true);
+    showToast('Password reset link sent (demo)','success');
+  };
+  return (
+    <div className="h-full screen-scroll bg-moon-cream px-6 py-6">
+      <Header title="Reset Password" onBack={()=>navigate('login')}/>
+      <div className="mt-6 space-y-4">
+        {sent ? (
+          <div className="text-center py-8">
+            <div className="text-5xl mb-4">📧</div>
+            <h2 className="font-display font-bold text-xl text-midnight-plum">Check your email</h2>
+            <p className="text-sm text-midnight-plum/60 mt-2">We sent a reset link to {email}</p>
+            <Button onClick={()=>navigate('login')} className="mt-6" variant="outline">Back to Sign In</Button>
+          </div>
+        ) : (
+          <>
+            <p className="text-midnight-plum/70">Enter your email and we'll send you a link to reset your password.</p>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@email.com" className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+            <Button onClick={handleReset} full>Send Reset Link</Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Parent Setup ──────────────────────────────────────────────
+function ParentSetupScreen() {
+  const {user} = useAuth();
+  const {navigate, showToast} = useApp();
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+
+  const handleSave = () => {
+    if(pin.length<4) { showToast('PIN must be at least 4 digits','error'); return; }
+    if(pin!==pin2) { showToast('PINs do not match','error'); return; }
+    DB.update('profiles', user.id, {pin});
+    showToast('Parent PIN set!','success');
+    navigate('child-profile');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream px-6 py-6">
+      <Header title="Parent Setup"/>
+      <div className="mt-4 space-y-6">
+        <div className="text-center py-4">
+          <div className="text-5xl mb-3">🔐</div>
+          <h2 className="font-display font-bold text-xl text-midnight-plum">Set Your Parent PIN</h2>
+          <p className="text-sm text-midnight-plum/60 mt-1">This PIN protects parent-only settings from little explorers</p>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Create PIN (4+ digits)</label>
+          <input type="password" inputMode="numeric" value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,''))} placeholder="e.g. 1234" maxLength={8} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum text-center text-2xl tracking-widest focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Confirm PIN</label>
+          <input type="password" inputMode="numeric" value={pin2} onChange={e=>setPin2(e.target.value.replace(/\D/g,''))} placeholder="Confirm" maxLength={8} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum text-center text-2xl tracking-widest focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <Button onClick={handleSave} full size="lg">Save PIN & Continue</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Child Profile ─────────────────────────────────────────────
+function ChildProfileScreen() {
+  const {user} = useAuth();
+  const {navigate, showToast, activeChild, setActiveChild} = useApp();
+  const [name, setName] = useState('');
+  const [age, setAge] = useState('5');
+  const [bedtime, setBedtime] = useState('20:30');
+
+  const handleCreate = () => {
+    if(!name) { showToast('Please enter your child\'s name','error'); return; }
+    const child = {id:uid(), parent_id:user.id, name, age:parseInt(age), avatar:['🧒','👧','👶','🧒‍🍳','👼'][Math.floor(Math.random()*5)], preferred_language:'en', bedtime, sleep_duration:8, created_at:now(), updated_at:now()};
+    DB.insert('children', child);
+    DB.insert('sleep_settings', {id:uid(), child_id:child.id, timer_duration:15, auto_pause:true, created_at:now()});
+    setActiveChild(child);
+    showToast(`${name}'s profile created!`,'success');
+    navigate('language-select');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream px-6 py-6">
+      <Header title="Child Profile" onBack={()=>navigate('parent-setup')}/>
+      <div className="mt-4 space-y-5">
+        <div className="text-center py-2">
+          <div className="text-5xl mb-3">🧒</div>
+          <h2 className="font-display font-bold text-xl text-midnight-plum">Who will be listening?</h2>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Child's Name</label>
+          <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Aadhira" className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Age</label>
+          <div className="flex gap-2 flex-wrap">
+            {[3,4,5,6,7,8,9,10].map(a=>(
+              <button key={a} onClick={()=>setAge(String(a))} className={`w-10 h-10 rounded-xl font-bold transition-all ${age===String(a)?'bg-dream-violet text-white':'bg-white text-midnight-plum border border-cloud-lavender/50'}`}>{a}</button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Bedtime</label>
+          <input type="time" value={bedtime} onChange={e=>setBedtime(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+        <Button onClick={handleCreate} full size="lg">Create Profile</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Language Select ───────────────────────────────────────────
+function LanguageSelectScreen() {
+  const {navigate, activeLang, setActiveLang, showToast} = useApp();
+  return (
+    <div className="h-full screen-scroll bg-moon-cream px-6 py-6">
+      <Header title="Choose Language" onBack={()=>navigate('child-profile')}/>
+      <div className="mt-4 space-y-5">
+        <div className="text-center py-2">
+          <div className="text-5xl mb-3">🌍</div>
+          <h2 className="font-display font-bold text-xl text-midnight-plum">Which language for stories?</h2>
+          <p className="text-sm text-midnight-plum/60 mt-1">You can change this anytime</p>
+        </div>
+        <LanguageSelector value={activeLang} onChange={setActiveLang}/>
+        <Button onClick={()=>{showToast('Language set!','success');navigate('home');}} full size="lg" disabled={!activeLang}>Continue</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Home Screen ───────────────────────────────────────────────
+function HomeScreen() {
+  const {navigate, activeChild, activeLang} = useApp();
+  const {user} = useAuth();
+  const {story: playingStory} = usePlayer();
+  const [stories, setStories] = useState([]);
+  const [history, setHistory] = useState([]);
+
+  useEffect(()=>{
+    const s = DB.getStories(activeLang);
+    setStories(s);
+    if(activeChild) {
+      const h = DB.getListeningHistory(activeChild.id).slice(0,4);
+      setHistory(h);
+    }
+  },[activeLang, activeChild]);
+
+  const greeting = () => { const h=new Date().getHours(); return h<12?'Good morning':h<17?'Good afternoon':'Good night'; };
+  const recommended = stories.slice(0,4);
+  const calmingStories = stories.filter(s=>s.category==='calming').slice(0,3);
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-24">
+      {/* Hero */}
+      <div className="bg-gradient-to-br from-dream-violet to-dream-violet-light px-5 pt-6 pb-8 rounded-b-[2rem]">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <p className="text-white/70 text-sm">{greeting()}</p>
+            <h1 className="font-display font-bold text-2xl text-white">{activeChild?.name||'Dreamer'} 🌙</h1>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-xl cursor-pointer" onClick={()=>navigate('child-edit')}>
+            {activeChild?.avatar||'🧒'}
+          </div>
+        </div>
+        {activeChild && <p className="text-white/60 text-sm">Bedtime at {activeChild.bedtime}</p>}
+      </div>
+
+      <div className="px-5 -mt-4 space-y-6">
+        {/* Continue Listening */}
+        {playingStory && (
+          <Card className="!bg-midnight-plum !border-0 cursor-pointer" onClick={()=>navigate('player')}>
+            <div className="flex items-center gap-3">
+              <img src={playingStory.cover} className="w-12 h-12 rounded-xl object-cover"/>
+              <div className="flex-1 min-w-0">
+                <div className="text-white/60 text-xs font-semibold">Continue Listening</div>
+                <div className="text-white font-bold text-sm truncate">{playingStory.title}</div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-dream-violet flex items-center justify-center text-white">▶</div>
+            </div>
+          </Card>
+        )}
+
+        {/* Categories */}
+        <div className="animate-fade-in">
+          <h2 className="font-display font-bold text-lg text-midnight-plum mb-3">Categories</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+            {CATEGORIES.map(c=><CategoryCard key={c.id} category={c} onClick={()=>navigate('stories',{category:c.id})}/>)}
+          </div>
+        </div>
+
+        {/* Recommended */}
+        <div className="animate-fade-in delay-100">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display font-bold text-lg text-midnight-plum">Recommended</h2>
+            <button onClick={()=>navigate('stories')} className="text-dream-violet text-sm font-semibold">See all →</button>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {recommended.map(s=><StoryCard key={s.id} story={s} onClick={()=>navigate('story-detail',{storyId:s.id})}/>)}
+          </div>
+        </div>
+
+        {/* Calming Stories */}
+        {calmingStories.length>0 && (
+          <div className="animate-fade-in delay-200">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-display font-bold text-lg text-midnight-plum">Calming Stories</h2>
+              <button onClick={()=>navigate('stories',{category:'calming'})} className="text-dream-violet text-sm font-semibold">See all →</button>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {calmingStories.map(s=>(
+                <div key={s.id} className="flex-shrink-0 w-64 cursor-pointer" onClick={()=>navigate('story-detail',{storyId:s.id})}>
+                  <Card className="!p-0 overflow-hidden">
+                    <img src={s.cover} className="w-full h-32 object-cover"/>
+                    <div className="p-3"><h3 className="font-bold text-sm text-midnight-plum line-clamp-1">{s.title}</h3><p className="text-xs text-midnight-plum/50 mt-1">{s.duration} min</p></div>
+                  </Card>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Family Voices Quick Access */}
+        <div className="animate-fade-in delay-300">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display font-bold text-lg text-midnight-plum">Family Voices</h2>
+            <button onClick={()=>navigate('family-voices')} className="text-dream-violet text-sm font-semibold">Manage →</button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {(()=>{
+              const members = user ? DB.getFamilyMembers(user.id) : [];
+              if(members.length===0) return <div className="text-sm text-midnight-plum/50 py-2">Add family voices in Parent settings</div>;
+              return members.map(m=>(
+                <div key={m.id} className="flex-shrink-0 cursor-pointer" onClick={()=>navigate('family-voices')}>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-14 h-14 rounded-full bg-cloud-lavender flex items-center justify-center text-2xl">{m.avatar}</div>
+                    <span className="text-xs font-semibold text-midnight-plum">{m.name}</span>
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+
+        {/* Bedtime Section */}
+        <Card className="!bg-gradient-to-r !from-cloud-lavender !to-moon-cream !border-dream-violet/20">
+          <div className="flex items-center gap-4">
+            <div className="text-4xl animate-float">🌙</div>
+            <div className="flex-1">
+              <h3 className="font-display font-bold text-midnight-plum">Bedtime Mode</h3>
+              <p className="text-sm text-midnight-plum/60">{activeChild?`${activeChild.name}'s bedtime is ${activeChild.bedtime}`:'Set a bedtime for calm evenings'}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={()=>navigate('story-detail',{storyId:calmingStories[0]?.id||stories[0]?.id})}>Listen</Button>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Story Library ─────────────────────────────────────────────
+function StoryLibraryScreen() {
+  const {navigate, params, activeLang, setActiveLang} = useApp();
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState(params.category||null);
+  const [stories, setStories] = useState([]);
+
+  useEffect(()=>{
+    let s = DB.getStories(activeLang, category);
+    if(search) { const q=search.toLowerCase(); s=s.filter(st=>st.title.toLowerCase().includes(q)||st.description.toLowerCase().includes(q)); }
+    setStories(s);
+  },[activeLang, category, search]);
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-24">
+      <Header title="Stories" right={<button onClick={()=>navigate('home')} className="text-dream-violet text-sm font-semibold">Home</button>}/>
+      <div className="px-5 space-y-4 mt-2">
+        {/* Search */}
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-midnight-plum/30">🔍</span>
+          <input type="text" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search stories..." className="w-full pl-11 pr-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        </div>
+
+        {/* Language filter */}
+        <LanguageSelector value={activeLang} onChange={setActiveLang} compact/>
+
+        {/* Category filter */}
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          <button onClick={()=>setCategory(null)} className={`px-4 py-2 rounded-xl text-sm font-semibold flex-shrink-0 transition-all ${!category?'bg-dream-violet text-white':'bg-white text-midnight-plum border border-cloud-lavender/50'}`}>All</button>
+          {CATEGORIES.map(c=>(
+            <button key={c.id} onClick={()=>setCategory(c.id)} className={`px-4 py-2 rounded-xl text-sm font-semibold flex-shrink-0 transition-all ${category===c.id?'text-white':'bg-white text-midnight-plum border border-cloud-lavender/50'}`} style={category===c.id?{background:c.color}:{}}>{c.icon} {c.name}</button>
+          ))}
+        </div>
+
+        {/* Stories Grid */}
+        {stories.length===0 ? <EmptyState icon="📚" title="No stories found" description="Try a different language or category"/> : (
+          <div className="grid grid-cols-2 gap-3">
+            {stories.map(s=><StoryCard key={s.id} story={s} onClick={()=>navigate('story-detail',{storyId:s.id})}/>)}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Story Detail ──────────────────────────────────────────────
+function StoryDetailScreen() {
+  const {params, navigate, activeChild, showToast} = useApp();
+  const {user} = useAuth();
+  const story = DB.getById('stories', params.storyId);
+  const [voices, setVoices] = useState([]);
+  const [downloaded, setDownloaded] = useState(false);
+
+  useEffect(()=>{
+    if(user) {
+      const v = DB.getAllVoicesForParent(user.id);
+      setVoices(v);
+    }
+    if(activeChild) {
+      const d = DB.getDownloads(activeChild.id).find(d=>d.story_id===params.storyId);
+      setDownloaded(!!d);
+    }
+  },[params.storyId, user, activeChild]);
+
+  if(!story) return <div className="h-full flex items-center justify-center"><EmptyState icon="❓" title="Story not found"/></div>;
+  const cat = CATEGORIES.find(c=>c.id===story.category);
+  const langs = story.languages.map(l=>LANGUAGES.find(la=>la.id===l)).filter(Boolean);
+
+  const handleDownload = async () => {
+    if(!activeChild) { showToast('Select a child profile first','error'); return; }
+    const dl = {id:uid(), child_id:activeChild.id, story_id:story.id, downloaded_at:now(), status:'downloaded'};
+    DB.insert('downloads', dl);
+    // Save to IndexedDB
+    await DownloadManager.save(`story_${story.id}`, new Blob(['demo audio'],{type:'audio/wav'}), {storyId:story.id, title:story.title});
+    setDownloaded(true);
+    showToast('Story downloaded for offline!','success');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-24">
+      {/* Cover */}
+      <div className="relative">
+        <img src={story.cover} className="w-full h-56 object-cover"/>
+        <div className="absolute inset-0 bg-gradient-to-t from-midnight-plum/60 to-transparent"/>
+        <button onClick={()=>navigate('stories')} className="absolute top-4 left-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">←</button>
+      </div>
+
+      <div className="px-5 -mt-8 relative z-10 space-y-5">
+        <Card className="animate-slide-up">
+          <h1 className="font-display font-bold text-xl text-midnight-plum">{story.title}</h1>
+          <p className="text-sm text-midnight-plum/60 mt-2 leading-relaxed">{story.description}</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <span className="px-3 py-1 rounded-full text-xs font-bold text-white" style={{background:cat?.color}}>{cat?.name}</span>
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-cloud-lavender text-dream-violet">⏱ {story.duration} min</span>
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-cloud-lavender text-dream-violet">Ages {story.age_min}-{story.age_max}</span>
+          </div>
+          <div className="flex gap-2 mt-3">
+            {langs.map(l=><span key={l.id} className="px-2 py-1 rounded-lg text-xs font-semibold bg-moon-cream text-midnight-plum/70">{l.flag} {l.name}</span>)}
+          </div>
+        </Card>
+
+        {/* Family Voices */}
+        <div className="animate-fade-in delay-100">
+          <h2 className="font-display font-bold text-lg text-midnight-plum mb-3">Choose a Voice</h2>
+          {voices.length===0 ? (
+            <Card>
+              <p className="text-sm text-midnight-plum/60 text-center py-2">No family voices yet. Add them in Parent settings.</p>
+              <Button variant="ghost" size="sm" onClick={()=>navigate('family-voices')} className="mt-2" full>Add Family Voices</Button>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {voices.map(v=>(
+                <VoiceCard key={v.id} voice={v} onClick={()=>navigate('player',{storyId:story.id, voiceId:v.id})}/>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Default voice option */}
+        <div className="animate-fade-in delay-200">
+          <VoiceCard voice={{id:'default',name:'Default Narrator',avatar:'🎙️',relationship:'Professional',label:'Default'}} onClick={()=>navigate('player',{storyId:story.id, voiceId:'default'})}/>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3 animate-fade-in delay-300">
+          <Button variant="primary" size="lg" full onClick={()=>navigate('player',{storyId:story.id, voiceId:'default'})}>Listen Now</Button>
+          <Button variant={downloaded?'mint':'outline'} size="lg" full onClick={handleDownload} disabled={downloaded}>{downloaded?'Downloaded ✓':'Download'}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Story Player ──────────────────────────────────────────────
+function PlayerScreen() {
+  const {params, navigate, activeChild, showToast} = useApp();
+  const {playing, story, voice, progress, volume, speed, sleepTimer, timerRemaining, playStory, togglePlay, stop, seek, setVolume, setSpeed, startSleepTimer, clearSleepTimer} = usePlayer();
+  const [audioReady, setAudioReady] = useState(false);
+  const [showTimer, setShowTimer] = useState(false);
+  const [showSpeed, setShowSpeed] = useState(false);
+  const [showVol, setShowVol] = useState(false);
+  const progressRef = useRef(null);
+  const audioUrlRef = useRef(null);
+
+  useEffect(()=>{
+    const loadAndPlay = async () => {
+      const storyObj = DB.getById('stories', params.storyId);
+      if(!storyObj) return;
+
+      let voiceObj = {id:'default', name:'Default Narrator', avatar:'🎙️', relationship:'Professional'};
+      if(params.voiceId && params.voiceId !== 'default') {
+        const allVoices = DB.getAll('family_voices');
+        const fv = allVoices.find(v=>v.id===params.voiceId);
+        if(fv) {
+          const member = DB.getById('family_members', fv.family_member_id);
+          voiceObj = {...fv, name:fv.voice_name, avatar:member?.avatar||'🎤', relationship:member?.relationship||''};
+        }
+      }
+
+      // Check for stored audio URL for this voice+story combo
+      const audioLinks = DB.getStoryAudio(params.storyId, params.voiceId);
+      let audioSrc = null;
+      if(audioLinks.length>0 && audioLinks[0].audio_url) {
+        audioSrc = audioLinks[0].audio_url;
+      }
+
+      // Check IndexedDB for downloaded audio
+      if(!audioSrc) {
+        const dl = await DownloadManager.get(`audio_${params.storyId}_${params.voiceId}`);
+        if(dl && dl.blob) {
+          audioSrc = URL.createObjectURL(dl.blob);
+        }
+      }
+
+      // If no real audio, generate a demo calming tone
+      if(!audioSrc) {
+        try {
+          const blob = await AudioEngine.generateDemoAudio(storyObj.duration * 60);
+          audioSrc = URL.createObjectURL(blob);
+          audioUrlRef.current = audioSrc;
+        } catch(e) {
+          // Fallback: create a very simple tone
+          console.warn('Could not generate demo audio, using silent fallback');
+        }
+      }
+
+      await playStory(storyObj, voiceObj, audioSrc);
+      setAudioReady(true);
+
+      // Record listening history
+      if(activeChild) {
+        DB.insert('listening_history', {id:uid(), child_id:activeChild.id, story_id:params.storyId, voice_id:params.voiceId, start_time:now(), end_time:null, duration:0, completed:false, created_at:now()});
+      }
+    };
+
+    loadAndPlay();
+
+    return ()=>{
+      if(audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+    };
+  },[params.storyId, params.voiceId]);
+
+  const handleSeek = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = clamp((e.clientX - rect.left)/rect.width, 0, 1);
+    const audio = AudioEngine.getAudio();
+    if(audio && audio.duration) {
+      seek(pct * audio.duration);
+    }
+  };
+
+  const handleClose = () => {
+    stop();
+    navigate('story-detail', {storyId: params.storyId});
+  };
+
+  if(!story) return <div className="h-full flex items-center justify-center bg-midnight-plum"><Loading/></div>;
+
+  return (
+    <div className="h-full flex flex-col bg-gradient-to-b from-midnight-plum via-midnight-plum-light to-midnight-plum text-white">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-5 pt-4 pb-2">
+        <button onClick={handleClose} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center active:scale-90">✕</button>
+        <div className="text-sm font-semibold text-white/60">Now Playing</div>
+        <button onClick={()=>setShowTimer(!showTimer)} className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-90 ${sleepTimer?'bg-moon-mango/30':'bg-white/10'}`}>🌙</button>
+      </div>
+
+      {/* Cover */}
+      <div className="flex-1 flex flex-col items-center justify-center px-8">
+        <div className="w-56 h-56 rounded-3xl overflow-hidden shadow-2xl shadow-dream-violet/30 mb-6 animate-fade-in">
+          <img src={story.cover} className="w-full h-full object-cover"/>
+        </div>
+        <h2 className="font-display font-bold text-xl text-center animate-fade-in">{story.title}</h2>
+        <p className="text-white/50 text-sm mt-1">{voice?.name||'Default Narrator'}</p>
+      </div>
+
+      {/* Sleep Timer Panel */}
+      {showTimer && (
+        <div className="px-5 pb-4 animate-fade-in">
+          <SleepTimerComponent
+            active={!!sleepTimer}
+            remaining={timerRemaining}
+            onSelect={(mins)=>{
+              if(mins===0) { /* end of story */ showToast('Will stop at end of story','success'); }
+              else { startSleepTimer(mins); showToast(`Sleep timer: ${mins} min`,'success'); }
+              setShowTimer(false);
+            }}
+          />
+          {sleepTimer && <Button variant="ghost" size="sm" onClick={()=>{clearSleepTimer();showToast('Timer cancelled','info');}} full className="mt-2 !text-white/60">Cancel Timer</Button>}
+        </div>
+      )}
+
+      {/* Progress */}
+      <div className="px-5 pb-2">
+        <div ref={progressRef} onClick={handleSeek} className="w-full h-2 bg-white/20 rounded-full cursor-pointer relative">
+          <div className="h-full bg-moon-mango rounded-full transition-all duration-300" style={{width:`${progress.percent}%`}}/>
+        </div>
+        <div className="flex justify-between text-xs text-white/40 mt-1">
+          <span>{fmtTime(progress.current)}</span>
+          <span>{fmtTime(progress.total)}</span>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center justify-center gap-6 px-5 pb-4">
+        <button onClick={()=>setShowSpeed(!showSpeed)} className="text-white/60 text-sm font-bold w-10 text-center">{speed}x</button>
+        <button onClick={togglePlay} className="w-16 h-16 rounded-full bg-dream-violet flex items-center justify-center text-2xl shadow-lg shadow-dream-violet/40 active:scale-90 transition-transform">{playing?'⏸':'▶'}</button>
+        <button onClick={()=>setShowVol(!showVol)} className="text-white/60 text-sm font-bold w-10 text-center">🔊</button>
+      </div>
+
+      {/* Speed slider */}
+      {showSpeed && (
+        <div className="px-5 pb-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-white/40">Speed</span>
+            <input type="range" min="0.5" max="2" step="0.25" value={speed} onChange={e=>setSpeed(parseFloat(e.target.value))} className="flex-1 accent-dream-violet"/>
+            <span className="text-xs text-white/60 font-bold">{speed}x</span>
+          </div>
+        </div>
+      )}
+
+      {/* Volume slider */}
+      {showVol && (
+        <div className="px-5 pb-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-white/40">Vol</span>
+            <input type="range" min="0" max="1" step="0.05" value={volume} onChange={e=>setVolume(parseFloat(e.target.value))} className="flex-1 accent-dream-violet"/>
+            <span className="text-xs text-white/60 font-bold">{Math.round(volume*100)}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* Timer status */}
+      {sleepTimer && timerRemaining && (
+        <div className="px-5 pb-4 text-center">
+          <span className="text-moon-mango text-xs font-semibold">🌙 Sleep timer: {Math.floor(timerRemaining/60)}:{String(timerRemaining%60).padStart(2,'0')}</span>
+        </div>
+      )}
+
+      <div className="pb-6"/>
+    </div>
+  );
+}
+
+// ─── Downloads Screen ──────────────────────────────────────────
+function DownloadsScreen() {
+  const {navigate, activeChild, showToast} = useApp();
+  const [downloads, setDownloads] = useState([]);
+
+  useEffect(()=>{
+    if(activeChild) {
+      const dl = DB.getDownloads(activeChild.id);
+      const enriched = dl.map(d=>({...d, story:DB.getById('stories', d.story_id)})).filter(d=>d.story);
+      setDownloads(enriched);
+    }
+  },[activeChild]);
+
+  const handleDelete = (dlId, storyId) => {
+    DB.delete_('downloads', dlId);
+    DownloadManager.remove(`story_${storyId}`);
+    setDownloads(prev=>prev.filter(d=>d.id!==dlId));
+    showToast('Download removed','info');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-24">
+      <Header title="Downloads"/>
+      <div className="px-5 mt-2">
+        {downloads.length===0 ? (
+          <EmptyState icon="⬇️" title="No downloads yet" description="Download stories to listen offline"/>
+        ) : (
+          <div className="space-y-3">
+            {downloads.map(d=>(
+              <Card key={d.id} className="cursor-pointer" onClick={()=>navigate('story-detail',{storyId:d.story_id})}>
+                <div className="flex items-center gap-3">
+                  <img src={d.story.cover} className="w-14 h-14 rounded-xl object-cover"/>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-sm text-midnight-plum truncate">{d.story.title}</h3>
+                    <p className="text-xs text-midnight-plum/50">{d.story.duration} min • Available offline</p>
+                  </div>
+                  <button onClick={e=>{e.stopPropagation();handleDelete(d.id, d.story_id);}} className="text-red-400 text-sm font-semibold px-2">Delete</button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Parent Gate ───────────────────────────────────────────────
+function ParentGateScreen() {
+  const {user} = useAuth();
+  const {navigate, showToast, parentUnlocked, setParentUnlocked} = useApp();
+  const [pin, setPin] = useState('');
+  const [error, setError] = useState('');
+
+  if(parentUnlocked) { navigate('parent-dashboard'); return null; }
+
+  const handleVerify = () => {
+    const profile = DB.getById('profiles', user?.id);
+    if(!profile) { showToast('Profile not found','error'); return; }
+    if(pin===profile.pin) {
+      setParentUnlocked(true);
+      navigate('parent-dashboard');
+    } else {
+      setError('Incorrect PIN');
+      showToast('Wrong PIN','error');
+      setPin('');
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center bg-moon-cream px-6">
+      <div className="text-5xl mb-4">🔐</div>
+      <h1 className="font-display font-bold text-2xl text-midnight-plum">Parent Gate</h1>
+      <p className="text-sm text-midnight-plum/60 mt-1 text-center">Enter your PIN to access parent settings</p>
+      <div className="mt-6 w-full max-w-xs">
+        <input type="password" inputMode="numeric" value={pin} onChange={e=>{setPin(e.target.value.replace(/\D/g,''));setError('');}} placeholder="Enter PIN" maxLength={8} onKeyDown={e=>e.key==='Enter'&&handleVerify()} className="w-full px-4 py-4 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum text-center text-3xl tracking-widest focus:border-dream-violet focus:ring-2 focus:ring-dream-violet/20 transition-all"/>
+        {error && <p className="text-red-500 text-sm font-semibold text-center mt-2">{error}</p>}
+        <Button onClick={handleVerify} full size="lg" className="mt-4">Unlock</Button>
+        <Button onClick={()=>navigate('home')} full variant="ghost" className="mt-2">Cancel</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Parent Dashboard ──────────────────────────────────────────
+function ParentDashboardScreen() {
+  const {navigate, activeChild, parentUnlocked, setParentUnlocked} = useApp();
+  const {user} = useAuth();
+  const {signOut} = useAuth();
+
+  const [children, setChildren] = useState([]);
+  const [members, setMembers] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [downloads, setDownloads] = useState([]);
+
+  useEffect(()=>{
+    if(user) {
+      setChildren(DB.getChildren(user.id));
+      setMembers(DB.getFamilyMembers(user.id));
+    }
+    if(activeChild) {
+      setHistory(DB.getListeningHistory(activeChild.id).slice(0,10));
+      setDownloads(DB.getDownloads(activeChild.id));
+    }
+  },[user, activeChild]);
+
+  const totalMinutes = history.reduce((acc,h)=>acc+(h.duration||0),0);
+  const storiesCompleted = history.filter(h=>h.completed).length;
+
+  const handleSignOut = () => {
+    signOut();
+    setParentUnlocked(false);
+    navigate('welcome');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-24">
+      <Header title="Parent Dashboard" right={<button onClick={()=>{setParentUnlocked(false);navigate('home');}} className="text-dream-violet text-sm font-semibold">Lock</button>}/>
+
+      <div className="px-5 mt-2 space-y-5">
+        {/* Child Selector */}
+        <Card>
+          <h3 className="font-display font-bold text-midnight-plum mb-2">Child Profile</h3>
+          {children.length===0 ? (
+            <p className="text-sm text-midnight-plum/50">No children added yet</p>
+          ) : (
+            <div className="space-y-2">
+              {children.map(c=>(
+                <div key={c.id} onClick={()=>{DB.update('children',c.id,{});navigate('child-edit',{childId:c.id});}} className={`flex items-center gap-3 p-2 rounded-xl cursor-pointer transition-all ${activeChild?.id===c.id?'bg-cloud-lavender':'hover:bg-cloud-lavender/50'}`}>
+                  <div className="w-10 h-10 rounded-full bg-cloud-lavender flex items-center justify-center text-xl">{c.avatar}</div>
+                  <div className="flex-1"><div className="font-bold text-sm text-midnight-plum">{c.name}</div><div className="text-xs text-midnight-plum/50">Age {c.age} • Bedtime {c.bedtime}</div></div>
+                  {activeChild?.id===c.id && <span className="text-dream-violet text-sm">✓</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="ghost" size="sm" onClick={()=>navigate('child-profile')} full className="mt-2">Add Child</Button>
+        </Card>
+
+        {/* Activity Stats */}
+        <Card>
+          <h3 className="font-display font-bold text-midnight-plum mb-3">Activity</h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center"><div className="text-2xl font-bold text-dream-violet">{history.length}</div><div className="text-xs text-midnight-plum/50">Stories Played</div></div>
+            <div className="text-center"><div className="text-2xl font-bold text-moon-mango">{storiesCompleted}</div><div className="text-xs text-midnight-plum/50">Completed</div></div>
+            <div className="text-center"><div className="text-2xl font-bold text-dream-mint">{downloads.length}</div><div className="text-xs text-midnight-plum/50">Downloads</div></div>
+          </div>
+        </Card>
+
+        {/* Recent History */}
+        {history.length>0 && (
+          <Card>
+            <h3 className="font-display font-bold text-midnight-plum mb-2">Recent Listening</h3>
+            <div className="space-y-2">
+              {history.slice(0,5).map(h=>{
+                const s = DB.getById('stories', h.story_id);
+                return s ? (
+                  <div key={h.id} className="flex items-center gap-2">
+                    <img src={s.cover} className="w-8 h-8 rounded-lg object-cover"/>
+                    <div className="flex-1 min-w-0"><div className="text-xs font-semibold text-midnight-plum truncate">{s.title}</div><div className="text-[10px] text-midnight-plum/40">{new Date(h.created_at).toLocaleDateString()}</div></div>
+                  </div>
+                ) : null;
+              })}
+            </div>
+          </Card>
+        )}
+
+        {/* Settings Navigation */}
+        <div className="space-y-2">
+          <Card onClick={()=>navigate('family-voices')} className="cursor-pointer"><div className="flex items-center gap-3"><span className="text-2xl">🎤</span><div className="flex-1"><div className="font-bold text-sm text-midnight-plum">Family Voices</div><div className="text-xs text-midnight-plum/50">{members.length} member{members.length!==1?'s':''}</div></div><span className="text-midnight-plum/30">→</span></div></Card>
+          <Card onClick={()=>navigate('sleep-settings')} className="cursor-pointer"><div className="flex items-center gap-3"><span className="text-2xl">🌙</span><div className="flex-1"><div className="font-bold text-sm text-midnight-plum">Sleep Settings</div><div className="text-xs text-midnight-plum/50">Timer & bedtime</div></div><span className="text-midnight-plum/30">→</span></div></Card>
+          <Card onClick={()=>navigate('language-settings')} className="cursor-pointer"><div className="flex items-center gap-3"><span className="text-2xl">🌍</span><div className="flex-1"><div className="font-bold text-sm text-midnight-plum">Language</div><div className="text-xs text-midnight-plum/50">Story languages</div></div><span className="text-midnight-plum/30">→</span></div></Card>
+          <Card onClick={()=>navigate('pin-settings')} className="cursor-pointer"><div className="flex items-center gap-3"><span className="text-2xl">🔐</span><div className="flex-1"><div className="font-bold text-sm text-midnight-plum">Change PIN</div><div className="text-xs text-midnight-plum/50">Parent gate PIN</div></div><span className="text-midnight-plum/30">→</span></div></Card>
+        </div>
+
+        <Button variant="danger" onClick={handleSignOut} full>Sign Out</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Family Voices Screen ──────────────────────────────────────
+function FamilyVoicesScreen() {
+  const {navigate, showToast} = useApp();
+  const {user} = useAuth();
+  const [members, setMembers] = useState([]);
+  const [showAdd, setShowAdd] = useState(false);
+  const [showRecord, setShowRecord] = useState(false);
+  const [recordFor, setRecordFor] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recTime, setRecTime] = useState(0);
+  const recInterval = useRef(null);
+
+  useEffect(()=>{ if(user) setMembers(DB.getFamilyMembers(user.id)); },[user]);
+
+  const handleAddMember = (rel) => {
+    const member = {id:uid(), parent_id:user.id, name:rel.name, relationship:rel.id, avatar:rel.avatar, created_at:now()};
+    DB.insert('family_members', member);
+    setMembers(DB.getFamilyMembers(user.id));
+    setShowAdd(false);
+    showToast(`${rel.name} added!`,'success');
+  };
+
+  const startRecording = (member) => {
+    setRecordFor(member);
+    VoiceRecorder.start().then(ok=>{
+      if(ok) {
+        setIsRecording(true);
+        setRecTime(0);
+        recInterval.current = setInterval(()=>setRecTime(t=>t+1), 1000);
+        setShowRecord(true);
+      } else {
+        showToast('Microphone access denied','error');
+      }
+    });
+  };
+
+  const stopRecording = async () => {
+    clearInterval(recInterval.current);
+    setIsRecording(false);
+    const blob = await VoiceRecorder.stop();
+    if(blob && recordFor) {
+      const audioUrl = URL.createObjectURL(blob);
+      // Save to IndexedDB
+      await DownloadManager.save(`voice_${recordFor.id}_${Date.now()}`, blob, {memberId:recordFor.id, name:recordFor.name});
+      // Create family voice record
+      const voice = {id:uid(), family_member_id:recordFor.id, voice_name:`${recordFor.name}'s Voice`, audio_url:audioUrl, language:'en', created_at:now()};
+      DB.insert('family_voices', voice);
+      showToast(`Voice recorded for ${recordFor.name}!`,'success');
+    }
+    setShowRecord(false);
+    setRecordFor(null);
+    setRecTime(0);
+  };
+
+  const handleDeleteMember = (memberId) => {
+    DB.delete_('family_members', memberId);
+    DB.query('family_voices', v=>v.family_member_id===memberId).forEach(v=>DB.delete_('family_voices',v.id));
+    setMembers(DB.getFamilyMembers(user.id));
+    showToast('Family member removed','info');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-8">
+      <Header title="Family Voices" onBack={()=>navigate('parent-dashboard')}/>
+
+      <div className="px-5 mt-2 space-y-4">
+        <p className="text-sm text-midnight-plum/60">Add family members and record their voices. Your child can hear stories in familiar voices.</p>
+
+        {members.length===0 ? (
+          <EmptyState icon="🎤" title="No family voices yet" description="Add Amma, Appa, Patti, or Thatha"/>
+        ) : (
+          <div className="space-y-3">
+            {members.map(m=>{
+              const voices = DB.getFamilyVoices(m.id);
+              return (
+                <Card key={m.id}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-cloud-lavender flex items-center justify-center text-3xl">{m.avatar}</div>
+                    <div className="flex-1">
+                      <div className="font-bold text-midnight-plum">{m.name}</div>
+                      <div className="text-xs text-midnight-plum/50">{m.relationship} • {voices.length} voice{voices.length!==1?'s':''}</div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Button variant="primary" size="sm" onClick={()=>startRecording(m)} full>Record Voice</Button>
+                    <Button variant="outline" size="sm" onClick={()=>handleDeleteMember(m.id)} full>Remove</Button>
+                  </div>
+                  {voices.length>0 && (
+                    <div className="mt-3 space-y-1">
+                      {voices.map(v=>(
+                        <div key={v.id} className="flex items-center gap-2 p-2 rounded-lg bg-cloud-lavender/50">
+                          <span className="text-dream-violet">🎙️</span>
+                          <span className="text-sm font-semibold text-midnight-plum flex-1">{v.voice_name}</span>
+                          <button onClick={()=>{DB.delete_('family_voices',v.id);setMembers(DB.getFamilyMembers(user.id));}} className="text-red-400 text-xs font-semibold">Delete</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        <Button variant="mango" onClick={()=>setShowAdd(true)} full size="lg">Add Family Member</Button>
+      </div>
+
+      {/* Add Member Modal */}
+      <Modal open={showAdd} onClose={()=>setShowAdd(false)} title="Add Family Member">
+        <div className="space-y-3">
+          {RELATIONSHIPS.map(r=>(
+            <button key={r.id} onClick={()=>handleAddMember(r)} className="w-full flex items-center gap-3 p-3 rounded-xl bg-cloud-lavender/50 hover:bg-cloud-lavender transition-all active:scale-95">
+              <span className="text-2xl">{r.avatar}</span>
+              <div className="text-left"><div className="font-bold text-midnight-plum">{r.name}</div><div className="text-xs text-midnight-plum/50">{r.label}</div></div>
+            </button>
+          ))}
+        </div>
+      </Modal>
+
+      {/* Recording Modal */}
+      <Modal open={showRecord} onClose={()=>{if(isRecording){stopRecording();}}} title={`Recording ${recordFor?.name||''}'s Voice`}>
+        <div className="flex flex-col items-center py-6">
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl ${isRecording?'bg-red-500 animate-pulse-soft':'bg-dream-violet'}`}>
+            {isRecording?'⏺':'✓'}
+          </div>
+          <div className="text-2xl font-bold text-midnight-plum mt-3">{fmtTime(recTime)}</div>
+          <p className="text-sm text-midnight-plum/60 mt-1">{isRecording?'Recording... Speak naturally':'Recording complete!'}</p>
+          {isRecording ? (
+            <Button variant="danger" onClick={stopRecording} className="mt-4" size="lg">Stop Recording</Button>
+          ) : (
+            <Button variant="primary" onClick={()=>setShowRecord(false)} className="mt-4">Done</Button>
+          )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ─── Sleep Settings ────────────────────────────────────────────
+function SleepSettingsScreen() {
+  const {navigate, activeChild, showToast} = useApp();
+  const [timer, setTimer] = useState(15);
+  const [autoPause, setAutoPause] = useState(true);
+  const [bedtime, setBedtime] = useState('');
+
+  useEffect(()=>{
+    if(activeChild) {
+      const settings = DB.getSleepSettings(activeChild.id);
+      if(settings) { setTimer(settings.timer_duration); setAutoPause(settings.auto_pause); }
+      setBedtime(activeChild.bedtime);
+    }
+  },[activeChild]);
+
+  const handleSave = () => {
+    if(activeChild) {
+      const settings = DB.getSleepSettings(activeChild.id);
+      if(settings) DB.update('sleep_settings', settings.id, {timer_duration:timer, auto_pause:autoPause});
+      else DB.insert('sleep_settings', {id:uid(), child_id:activeChild.id, timer_duration:timer, auto_pause:autoPause, created_at:now()});
+      DB.update('children', activeChild.id, {bedtime});
+      showToast('Sleep settings saved!','success');
+    }
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-8">
+      <Header title="Sleep Settings" onBack={()=>navigate('parent-dashboard')}/>
+      <div className="px-5 mt-2 space-y-5">
+        <Card>
+          <h3 className="font-display font-bold text-midnight-plum mb-3">Default Sleep Timer</h3>
+          <div className="grid grid-cols-3 gap-2">
+            {[5,10,15,20,30,45].map(v=>(
+              <button key={v} onClick={()=>setTimer(v)} className={`py-3 rounded-xl text-sm font-bold transition-all ${timer===v?'bg-dream-violet text-white':'bg-cloud-lavender text-midnight-plum'}`}>{v} min</button>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <h3 className="font-display font-bold text-midnight-plum mb-2">Bedtime</h3>
+          <input type="time" value={bedtime} onChange={e=>setBedtime(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet transition-all"/>
+        </Card>
+        <Card>
+          <div className="flex items-center justify-between">
+            <div><h3 className="font-bold text-sm text-midnight-plum">Auto-pause at bedtime</h3><p className="text-xs text-midnight-plum/50">Stop playback when bedtime is reached</p></div>
+            <button onClick={()=>setAutoPause(!autoPause)} className={`w-12 h-7 rounded-full transition-all relative ${autoPause?'bg-dream-violet':'bg-cloud-lavender'}`}>
+              <div className={`w-5 h-5 rounded-full bg-white absolute top-1 transition-all ${autoPause?'right-1':'left-1'}`}/>
+            </button>
+          </div>
+        </Card>
+        <Button onClick={handleSave} full size="lg">Save Settings</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Language Settings ─────────────────────────────────────────
+function LanguageSettingsScreen() {
+  const {navigate, activeLang, setActiveLang, showToast} = useApp();
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-8">
+      <Header title="Language" onBack={()=>navigate('parent-dashboard')}/>
+      <div className="px-5 mt-2 space-y-4">
+        <p className="text-sm text-midnight-plum/60">Choose the default language for stories.</p>
+        <LanguageSelector value={activeLang} onChange={(l)=>{setActiveLang(l);showToast('Language updated','success');}}/>
+      </div>
+    </div>
+  );
+}
+
+// ─── PIN Settings ──────────────────────────────────────────────
+function PinSettingsScreen() {
+  const {navigate, showToast} = useApp();
+  const {user} = useAuth();
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+
+  const handleChange = () => {
+    const profile = DB.getById('profiles', user?.id);
+    if(currentPin !== profile?.pin) { showToast('Current PIN is incorrect','error'); return; }
+    if(newPin.length<4) { showToast('New PIN must be at least 4 digits','error'); return; }
+    if(newPin!==confirmPin) { showToast('PINs do not match','error'); return; }
+    DB.update('profiles', user.id, {pin:newPin});
+    showToast('PIN updated!','success');
+    navigate('parent-dashboard');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-8">
+      <Header title="Change PIN" onBack={()=>navigate('parent-dashboard')}/>
+      <div className="px-5 mt-2 space-y-4">
+        <div><label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Current PIN</label><input type="password" inputMode="numeric" value={currentPin} onChange={e=>setCurrentPin(e.target.value.replace(/\D/g,''))} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet transition-all"/></div>
+        <div><label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">New PIN</label><input type="password" inputMode="numeric" value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,''))} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet transition-all"/></div>
+        <div><label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Confirm New PIN</label><input type="password" inputMode="numeric" value={confirmPin} onChange={e=>setConfirmPin(e.target.value.replace(/\D/g,''))} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet transition-all"/></div>
+        <Button onClick={handleChange} full size="lg">Update PIN</Button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Child Edit ────────────────────────────────────────────────
+function ChildEditScreen() {
+  const {navigate, params, activeChild, setActiveChild, showToast} = useApp();
+  const {user} = useAuth();
+  const childId = params.childId || activeChild?.id;
+  const child = childId ? DB.getChild(childId) : null;
+  const [name, setName] = useState(child?.name||'');
+  const [age, setAge] = useState(String(child?.age||5));
+  const [bedtime, setBedtime] = useState(child?.bedtime||'20:30');
+
+  const handleSave = () => {
+    if(!name) { showToast('Name is required','error'); return; }
+    const updated = DB.update('children', childId, {name, age:parseInt(age), bedtime});
+    if(activeChild?.id===childId) setActiveChild(updated);
+    showToast('Profile updated!','success');
+    navigate('parent-dashboard');
+  };
+
+  return (
+    <div className="h-full screen-scroll bg-moon-cream pb-8">
+      <Header title="Edit Profile" onBack={()=>navigate('parent-dashboard')}/>
+      <div className="px-5 mt-2 space-y-4">
+        <div className="text-center py-4"><div className="text-5xl">{child?.avatar||'🧒'}</div></div>
+        <div><label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Name</label><input type="text" value={name} onChange={e=>setName(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet transition-all"/></div>
+        <div><label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Age</label><div className="flex gap-2 flex-wrap">{[3,4,5,6,7,8,9,10].map(a=><button key={a} onClick={()=>setAge(String(a))} className={`w-10 h-10 rounded-xl font-bold ${age===String(a)?'bg-dream-violet text-white':'bg-white text-midnight-plum border border-cloud-lavender/50'}`}>{a}</button>)}</div></div>
+        <div><label className="text-sm font-semibold text-midnight-plum/70 mb-1 block">Bedtime</label><input type="time" value={bedtime} onChange={e=>setBedtime(e.target.value)} className="w-full px-4 py-3 rounded-xl bg-white border border-cloud-lavender/50 text-midnight-plum focus:border-dream-violet transition-all"/></div>
+        <Button onClick={handleSave} full size="lg">Save Changes</Button>
+      </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN APP
+// ═══════════════════════════════════════════════════════════════
+function App() {
+  return (
+    <AuthProvider>
+      <AppProvider>
+        <PlayerProvider>
+          <AppInner/>
+        </PlayerProvider>
+      </AppProvider>
+    </AuthProvider>
+  );
+}
+
+function AppInner() {
+  const {screen} = useApp();
+  const {loading} = useAuth();
+  const {story} = usePlayer();
+
+  if(loading) return <div className="h-full flex items-center justify-center bg-moon-cream"><Loading/></div>;
+
+  const screens = {
+    'splash': SplashScreen,
+    'welcome': WelcomeScreen,
+    'login': LoginScreen,
+    'signup': SignupScreen,
+    'forgot-password': ForgotPasswordScreen,
+    'parent-setup': ParentSetupScreen,
+    'child-profile': ChildProfileScreen,
+    'language-select': LanguageSelectScreen,
+    'home': HomeScreen,
+    'stories': StoryLibraryScreen,
+    'story-detail': StoryDetailScreen,
+    'player': PlayerScreen,
+    'downloads': DownloadsScreen,
+    'parent-gate': ParentGateScreen,
+    'parent-dashboard': ParentDashboardScreen,
+    'family-voices': FamilyVoicesScreen,
+    'sleep-settings': SleepSettingsScreen,
+    'language-settings': LanguageSettingsScreen,
+    'pin-settings': PinSettingsScreen,
+    'child-edit': ChildEditScreen
+  };
+
+  const ScreenComponent = screens[screen] || HomeScreen;
+  const showNav = !['splash','welcome','login','signup','forgot-password','parent-setup','child-profile','language-select','player'].includes(screen);
+
+  return (
+    <div className="h-full w-full max-w-lg mx-auto relative bg-moon-cream overflow-hidden">
+      <div className="h-full overflow-hidden">
+        <ScreenComponent/>
+      </div>
+      {showNav && screen!=='player' && <BottomNav/>}
+      {showNav && story && screen!=='player' && <MiniPlayer/>}
+      <Toast/>
+    </div>
+  );
+}
+
+// ─── Render ────────────────────────────────────────────────────
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App/>);
+</script>
+</body>
+</html>
